@@ -13,3 +13,5 @@ api = { path = "./api" }
 tokio = { version = "1.25.0", features = ["full"] }
 sled = "0.34.7"
 lazy_static = "1.4.0"
+actix-web = "4"
+rocket = "0.5.0-rc.2"

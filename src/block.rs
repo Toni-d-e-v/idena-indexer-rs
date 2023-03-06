@@ -1,6 +1,8 @@
 
 
 // public
+
+#[derive(Debug, Clone)]
 pub struct Block {
     pub coinbase: String,
     pub flags: String,
@@ -15,28 +17,71 @@ pub struct Block {
     pub timestamp: u64,
     pub transactions: String,
 }
+
+
+
 impl Block {
 
 
     pub fn to_string(&self) -> String {
-        format!("{{\"coinbase\":\"{}\",\"flags\":\"{}\",\"hash\":\"{}\",\"height\":{},\"identityRoot\":\"{}\",\"ipfsCid\":\"{}\",\"isEmpty\":{},\"offlineAddress\":\"{}\",\"parentHash\":\"{}\",\"root\":\"{}\",\"timestamp\":{},\"transactions\":\"{}\"}}", self.coinbase, self.flags, self.hash, self.height, self.identityRoot, self.ipfsCid, self.isEmpty, self.offlineAddress, self.parentHash, self.root, self.timestamp, self.transactions)
+        // formart without json
+        format!("{}.{}.{}.{}.{}.{}.{}.{}.{}.{}.{}.{}", self.coinbase, self.flags, self.hash, self.height, self.identityRoot, self.ipfsCid, self.isEmpty, self.offlineAddress, self.parentHash, self.root, self.timestamp, self.transactions)
     }
-    pub fn from_string(&mut self, string: String) {
-        let json: serde_json::Value = serde_json::from_str(&string).unwrap();
-        self.coinbase = json["coinbase"].as_str().unwrap().to_string();
-        self.flags = json["flags"].as_str().unwrap().to_string();
-        self.hash = json["hash"].as_str().unwrap().to_string();
-        self.height = json["height"].as_u64().unwrap();
-        self.identityRoot = json["identityRoot"].as_str().unwrap().to_string();
-        self.ipfsCid = json["ipfsCid"].as_str().unwrap().to_string();
-        self.isEmpty = json["isEmpty"].as_bool().unwrap();
-        self.offlineAddress = json["offlineAddress"].as_str().unwrap().to_string();
-        self.parentHash = json["parentHash"].as_str().unwrap().to_string();
-        self.root = json["root"].as_str().unwrap().to_string();
-        self.timestamp = json["timestamp"].as_u64().unwrap();
-        self.transactions = json["transactions"].as_str().unwrap().to_string();
+    
+
+    pub fn default() -> Block {
+        Block {
+            coinbase: String::from(""),
+            flags: String::from(""),
+            hash: String::from(""),
+            height: 0,
+            identityRoot: String::from(""),
+            ipfsCid: String::from(""),
+            isEmpty: false,
+            offlineAddress: String::from(""),
+            parentHash: String::from(""),
+            root: String::from(""),
+            timestamp: 0,
+            transactions: String::from(""),
+        }
     }
+    pub fn from_string(block: String) -> Block {
+        let mut block = block.split(".");
+        let coinbase = block.next().unwrap().to_string();
+        let flags = block.next().unwrap().to_string();
+        let hash = block.next().unwrap().to_string();
+        let height = block.next().unwrap().parse::<u64>().unwrap();
+        let identityRoot = block.next().unwrap().to_string();
+        let ipfsCid = block.next().unwrap().to_string();
+        let isEmpty = block.next().unwrap().parse::<bool>().unwrap();
+        let offlineAddress = block.next().unwrap().to_string();
+        let parentHash = block.next().unwrap().to_string();
+        let root = block.next().unwrap().to_string();
+        let timestamp = block.next().unwrap().parse::<u64>().unwrap();
+        let transactions = block.next().unwrap().to_string();
+        Block {
+            coinbase,
+            flags,
+            hash,
+            height,
+            identityRoot,
+            ipfsCid,
+            isEmpty,
+            offlineAddress,
+            parentHash,
+            root,
+            timestamp,
+            transactions,
+        }
+       
+
+
+    }
+
+    
 }
+
+
 
 // let mut block_struct = Block {
 //     coinbase: block["coinbase"].as_str().unwrap().to_string(),
