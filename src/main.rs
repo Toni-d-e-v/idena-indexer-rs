@@ -17,83 +17,71 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 mod block;
 use block::Block;
-use sled::Db;
+use diesel::pg::PgConnection;
+use diesel::prelude::*;
+use dotenvy::dotenv;
+use std::env;
+pub mod models;
 
-#[macro_use]
-extern crate lazy_static;
-lazy_static! {
-    /// open db or create if not exist
-    static ref DB: Db = sled::open("db").unwrap();
-}
+pub mod schema;
 
+pub fn establish_connection() -> PgConnection {
+    dotenv().ok();
 
-
-async fn set_db(key: &str, value: &str) {
-
-    DB.insert(key, value).unwrap();
-}
-
-async fn get_db(key: &str) -> String {
-    match DB.get(key) {
-        Ok(Some(value)) => {
-            let value = value.to_vec();
-            let value = String::from_utf8(value).unwrap();
-            value
-        }
-        Ok(None) => {
-            println!("No value found for key: {}", key);
-            String::from("nof")
-        }
-        Err(e) => {
-            println!("Error: {}", e);
-            String::from("")
-        }
-    }
-}
-
-async fn lastest_synced_block() -> u64 {
-    let value = get_db("lastest_synced_block").await;
-    // nof check
-    if value == "nof" {
-        set_lastest_synced_block(0).await;
-        return 0;
-
-    }
-    match value.parse::<u64>() {
-        Ok(value) => {
-            value
-        
-        },
-        Err(e) => {
-            
-            0
-        }
-
-    }
+    let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
+    
+    PgConnection::establish(&database_url)
+        .unwrap_or_else(|_| panic!("Error connecting to {}", database_url))
 
 }
-async fn set_lastest_synced_block(value: u64) {
-    set_db("lastest_synced_block", &value.to_string()).await;
+
+
+
+use self::models::{BlockDB, NewBlockDB};
+use crate::schema::blocks::dsl::blocks;
+pub fn getBlockByHash(conn: &mut PgConnection, hash: String) -> BlockDB {
+    use crate::schema::blocks::dsl::{blocks, hash as block_hash};
+    let result = blocks
+        .filter(block_hash.eq(hash.clone()))
+        .first::<BlockDB>(conn)
+        .expect(&("Error loading block by hash ".to_owned() + &hash));
+    println!("Block Found: {}", result.hash);
+    result
 }
 
-// synced-range
-async fn synced_range() -> String {
-    let value = get_db("synced_range").await;
-    if value == "nof" {
-        set_synced_range(String::from("0-0")).await;
-        return String::from("0-0");
-    }
-    if value == "" {
-        String::from("0-0")
-    } else {
-        value
-    }
-}
-async fn set_synced_range(value: String) {
-    set_db("synced_range", &value).await;
+pub fn getBlockByHeight(conn: &mut PgConnection, height1: i32) -> BlockDB {
+    use crate::schema::blocks::dsl::{blocks, height as block_height};
+    let result = blocks
+        .filter(block_height.eq(height1))
+        .first::<BlockDB>(conn)
+        .expect(&("Error loading block by height ".to_owned() + &height1.to_string()));
+    
+    println!("Block Found: {}", result.hash);
+    result
 }
 
-async fn sync_block(api: IdenaAPI, height: usize) {
+pub fn getLastBlock(conn: &mut PgConnection) -> BlockDB {
+    use crate::schema::blocks::dsl::{blocks, height as block_height};
+    let result = blocks
+        .order(block_height.desc())
+        .first::<BlockDB>(conn)
+        .expect("Error loading last block");
+    
+    println!("Block Found: {}", result.hash);
+    result
+}
+
+pub fn doesExist(conn: &mut PgConnection, height: i32) -> bool {
+    use crate::schema::blocks::dsl::{blocks, height as block_height};
+    let result = blocks
+        .filter(block_height.eq(height))
+        .first::<BlockDB>(conn)
+        .is_ok();
+    result
+}
+async fn sync_block(conn: &mut PgConnection,api: IdenaAPI, height: usize) {
+    
+
     //let block = api.block_at(height).await.unwrap();
     let block = match api.block_at(height).await {
         Ok(value) => value,
@@ -124,96 +112,64 @@ async fn sync_block(api: IdenaAPI, height: usize) {
         parentHash: block["parentHash"].as_str().unwrap().to_string(),
         root: block["root"].as_str().unwrap().to_string(),
         timestamp: block["timestamp"].as_u64().unwrap(),
-        transactions: match block["transactions"].as_str() {
-            Some(value) => value.to_string(),
-            None => String::from(""),
+        transactions: if block["transactions"].is_array() {
+            let mut transactions = String::from("");
+            for transaction in block["transactions"].as_array().unwrap() {
+                transactions.push_str(&transaction.as_str().unwrap().to_string());
+                if transaction != block["transactions"].as_array().unwrap().last().unwrap() {
+                    transactions.push_str(",");
+                }
+            }
+            transactions
+        } else {
+            String::from("")
         },
     };
-    set_db(&string, &block_struct.to_string()).await;
-
-    
-    if block_struct.height > lastest_synced_block().await {
-        set_lastest_synced_block(block_struct.height).await;
-    } else if block_struct.height < lastest_synced_block().await {
-        let mut range = synced_range().await;
-        let mut range = range.split("-");
-        let mut range = (range.next().unwrap().parse::<u64>().unwrap(), range.next().unwrap().parse::<u64>().unwrap());
-        if range.0 == 0 {
-            range.0 = block_struct.height;
-        }
-  
-
-        if block_struct.height < range.0 {
-            let new_range = format!("{}-{}", block_struct.height, range.1);
-            set_synced_range(new_range).await;
-        } else if block_struct.height > range.1 {
-            let new_range = format!("{}-{}", range.0, block_struct.height);
-            set_synced_range(new_range).await;
-        }
-    }
-}
-async fn get_block(height: u64) -> Block {
-    let string = format!("block-{}", height.to_string());
-    let value = get_db(&string).await;
-    let block = Block::from_string(value);
-    block
-}
-// gBlockJson
 
 
-async fn calulate_next_batch(size: u64) -> (u64, u64) {
-    let mut range = synced_range().await;
-    let mut range = range.split("-");
-    let mut range = (range.next().unwrap().parse::<u64>().unwrap(), range.next().unwrap().parse::<u64>().unwrap());
-    // calulate next batch is synced range is 90-100 next batch is 80-100
-    let mut next_batch = (range.0 - size, range.1);
-    if next_batch.0 < 0 {
-        next_batch.0 = 0;
-    }
-    next_batch
-}
-async fn behind_range(api: IdenaAPI) -> (u64, u64) {
-    let mut range = synced_range().await;
-    let mut range = range.split("-");
-    let range = (range.next().unwrap().parse::<u64>().unwrap(), range.next().unwrap().parse::<u64>().unwrap());
-    let lastest = api.last_block().await.unwrap();
-    (range.1, lastest["height"].as_u64().unwrap())
+    let block_db = NewBlockDB {
+        coinbase: &block_struct.coinbase,
+        flags: &block_struct.flags,
+        hash: &block_struct.hash,
+        height: &(block_struct.height as i32),
+        identityroot: &block_struct.identityRoot,
+        ipfscid: &block_struct.ipfsCid,
+        isempty: block_struct.isEmpty,
+        offlineaddress: &block_struct.offlineAddress,
+        parenthash: &block_struct.parentHash,
+        root: &block_struct.root,
+        timestamp: &(block_struct.timestamp as i32),
+        transactions: &block_struct.transactions,
+        
+    };
+    let _result =  diesel::insert_into(blocks)
+
+        .values(&block_db)
+        .execute(conn);
+        
+        
+    println!("Block synced: {}", block_struct.hash);
+
 }
 
 
 
-//use serde_json::Value;
-//use serde_js
-
-
-#[get("/")]
-fn index() -> &'static str {
-    "Hello, world!"
-}
+use actix_web::{get, web, App, HttpServer, Responder};
 
 
 
-#[launch]
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let mut api = IdenaAPI::new("idena-restricted-node-key", "https://restricted.idena.io");
+  
+
 
     task::spawn(async move{
+        let mut api = IdenaAPI::new("idena-restricted-node-key", "https://restricted.idena.io");
+
         println!("Idena indexer in rust");
         let _response = api.epoch().await.unwrap();
         println!("Epoch: {}", _response);
-        // get lastest synced block and sync range and check if exists
-        // returns u64
-        // check if exists
-        match lastest_synced_block().await {
-            0 => {
-                println!("No lastest synced block found");
-            }
-            _ => {
-                println!("Lastest synced block: {}", lastest_synced_block().await);
-            }
-        }
-        // last_block
+
         let _response = api.last_block().await.unwrap();
         println!("Last block: {}", _response);
         // index last 10 blocks
@@ -221,39 +177,55 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         let lastest = _response;
         //sync_block(api.clone(), (lastest["height"].as_u64().unwrap() - i).try_into().unwrap()).await;
+        let mut db = establish_connection();
+        
+        // sync lastest block test
+        sync_block(&mut db,api.clone(), (lastest["height"].as_u64().unwrap()).try_into().unwrap()).await;
+        // get lastest block test
+        let block = getBlockByHash(&mut db, (lastest["hash"].as_str().unwrap()).to_string());
+        let block = getBlockByHeight(&mut db, (lastest["height"].as_u64().unwrap()).try_into().unwrap());
+        let mut lastest_height = 0;
+        println!("Lastest block: {}", block.hash);
+        loop {
+            let mut apiloop = IdenaAPI::new("idena-restricted-node-key", "https://restricted.idena.io");
 
+            let _response = apiloop.last_block().await.unwrap();
+            let height = _response["height"].as_u64().unwrap();
+            if height > lastest_height {
+                lastest_height = height;
+                sync_block(&mut db,api.clone(), height.try_into().unwrap()).await;
+                println!("Lastest block: {}, height: {}", _response["hash"].as_str().unwrap(), height);
+            }
+            sleep(Duration::from_secs(1)).await;
 
-        println!("Lastest synced block: {}", lastest_synced_block().await);
-        // get lastest_synced_block
-        let string = format!("block-{}", lastest_synced_block().await.to_string());
-        let value = get_db(&string).await;
-        println!("Lastest synced block: {}", value);
-        // synced_range
-        println!("Synced range: {}", synced_range().await);
-        // next batch
-        let next_batch = calulate_next_batch(10).await;
-        println!("Next batch: {}-{}", next_batch.0, next_batch.1);
-        // behind range
-        println!("Behind range: {}-{}", behind_range(api.clone()).await.0, behind_range(api.clone()).await.1);
-        // 2 threads one that syncs old blocks and behind range
-
-        while true {
-            // first check if behind range
-            let behind_range = behind_range(api.clone()).await;
-            if behind_range.0 < behind_range.1 {
-                println!("Behind range: {}-{}", behind_range.0, behind_range.1);
-                // sync blocks
-                for i in behind_range.0..behind_range.1 {
-                    println!("Syncing block: {}", i);
-                    sync_block(api.clone(),  i.try_into().unwrap()).await;
-                    tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+        }
+        
+        
+    });
+    task::spawn(async move{
+        let mut db = establish_connection();
+        
+        loop {
+            let mut apiloop = IdenaAPI::new("idena-restricted-node-key", "https://restricted.idena.io");
+            let mut lastest = getLastBlock(&mut db);
+            // this is thread to sync all blocks from lastest to 0 if block is not synced
+            let mut height = lastest.height;
+            for i in 0..height {
+                let doesExist1 = doesExist(&mut db, (height - i).try_into().unwrap());
+                if !doesExist1 {
+                    sync_block(&mut db,apiloop.clone(), (height - i).try_into().unwrap()).await;
                 }
             }
+            
+            
 
-            tokio::time::sleep(std::time::Duration::from_secs(10)).await;
-        }
+          }
     });
-    // wait for threads to finish
+
+    
+
+    // wait for ctrl    
+    tokio::signal::ctrl_c().await?;
 
     // rocket
     Ok(())
@@ -263,5 +235,4 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 
 
-// use actix_web::{get, post, web, App, HttpResponse, HttpServer, Responder};
 
