@@ -155,11 +155,57 @@ async fn sync_block(conn: &mut PgConnection,api: IdenaAPI, height: usize) {
 
 
 use actix_web::{get, web, App, HttpServer, Responder};
+use actix_web::{HttpResponse};
+
+#[get("/")]
+async fn index() -> impl Responder {
+    HttpResponse::Ok().body("Idena rust indexer")
+}
+#[get("/block/{hash_block}")]
+async fn block_api(path: web::Path<(String,)>) -> impl Responder {
+    let mut db = establish_connection();
+    let blockapi = getBlockByHash(&mut db, path.0.clone());
+    let mut string = format!("{:?}", blockapi);
+    HttpResponse::Ok().body(format!("{}", string).replace("BlockDB ", "").replace("", ""))
+}
+#[get("/block/height/{height}")]
+async fn block_api_height(path: web::Path<(i32,)>) -> impl Responder {
+    let mut db = establish_connection();
+    let blockapi = getBlockByHeight(&mut db, path.0.clone());
+    let mut string = format!("{:?}", blockapi);
+    HttpResponse::Ok().body(format!("{}", string).replace("BlockDB ", "").replace("", ""))
+}
+#[get("/lastblock")]
+async fn last_block_api() -> impl Responder {
+    let mut db = establish_connection();
+    let blockapi = getLastBlock(&mut db);
+    let mut string = format!("{:?}", blockapi);
+    HttpResponse::Ok().body(format!("{}", string).replace("BlockDB ", "").replace("", ""))
+}
+
+#[get("/last100blocks")]
+async fn last_100_blocks_api() -> impl Responder {
+    let mut db = establish_connection();
+    let mut json = String::from("[");
+    let mut lastest = getLastBlock(&mut db);
+    for i in 0..100 {
+        let blockapi = getBlockByHeight(&mut db, lastest.height - i);
+
+        let mut string = format!("{:?}", blockapi);
+        json.push_str(&format!("{}", string).replace("BlockDB ", "").replace("", ""));
+        if i != 99 {
+            json.push_str(",");
+        }
+    }
+    json.push_str("]");
+    HttpResponse::Ok().body(json)
+
+}
 
 
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+async fn main() -> Result<(), std::io::Error> {
   
 
 
@@ -216,23 +262,26 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     sync_block(&mut db,apiloop.clone(), (height - i).try_into().unwrap()).await;
                 }
             }
-            
-            
-
           }
     });
 
-    
+
 
     // wait for ctrl    
-    tokio::signal::ctrl_c().await?;
-
-    // rocket
-    Ok(())
+    HttpServer::new(|| {
+        App::new()
+            .service(index)
+            .service(block_api)
+            .service(block_api_height)
+            .service(last_block_api)
+            .service(last_100_blocks_api)
+            
+    })
+    .bind(("127.0.0.1", 8080))?
+    .run()
+    .await
 
 
 }
-
-
 
 

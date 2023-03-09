@@ -3,6 +3,7 @@ use crate::schema::blocks;
 
 
 #[derive(Queryable)]
+#[derive(Debug)]
 
 pub struct BlockDB {
     pub coinbase: String,
@@ -20,6 +21,8 @@ pub struct BlockDB {
 }
 
 #[derive(Insertable)]
+#[derive(Debug)]
+
 #[diesel(table_name = blocks)]
 pub struct NewBlockDB<'a> {
     pub coinbase: &'a str,
