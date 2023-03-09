@@ -157,6 +157,25 @@ async fn sync_block(conn: &mut PgConnection,api: IdenaAPI, height: usize) {
 use actix_web::{get, web, App, HttpServer, Responder};
 use actix_web::{HttpResponse};
 
+fn fix_string(mut string: String) -> String {
+    string.replace("BlockDB ", "").replace("", "");
+    string = string.replace("\n", "");
+    string = string.replace("coinbase", "\"coinbase\"");
+    string = string.replace("flags", "\"flags\"");
+    string = string.replace("hash", "\"hash\"");
+    string = string.replace("height", "\"height\"");
+    string = string.replace("identityRoot", "\"identityRoot\"");
+    string = string.replace("ipfsCid", "\"ipfsCid\"");
+    string = string.replace("isEmpty", "\"isEmpty\"");
+    string = string.replace("parentHash", "\"parentHash\"");
+    string = string.replace("root", "\"root\"");
+    string = string.replace("timestamp", "\"timestamp\"");
+    string = string.replace("transactions", "\"transactions\"");
+    string = string.replace("offlineAddress", "\"offlineAddress\"");
+    string = string.replace("BlockDB", "");
+    string 
+}
+
 #[get("/")]
 async fn index() -> impl Responder {
     HttpResponse::Ok().body("Idena rust indexer")
@@ -166,6 +185,8 @@ async fn block_api(path: web::Path<(String,)>) -> impl Responder {
     let mut db = establish_connection();
     let blockapi = getBlockByHash(&mut db, path.0.clone());
     let mut string = format!("{:?}", blockapi);
+    let string = fix_string(string);
+
     HttpResponse::Ok().body(format!("{}", string).replace("BlockDB ", "").replace("", ""))
 }
 #[get("/block/height/{height}")]
@@ -173,6 +194,8 @@ async fn block_api_height(path: web::Path<(i32,)>) -> impl Responder {
     let mut db = establish_connection();
     let blockapi = getBlockByHeight(&mut db, path.0.clone());
     let mut string = format!("{:?}", blockapi);
+    let string = fix_string(string);
+
     HttpResponse::Ok().body(format!("{}", string).replace("BlockDB ", "").replace("", ""))
 }
 #[get("/lastblock")]
@@ -180,6 +203,8 @@ async fn last_block_api() -> impl Responder {
     let mut db = establish_connection();
     let blockapi = getLastBlock(&mut db);
     let mut string = format!("{:?}", blockapi);
+    let string = fix_string(string);
+
     HttpResponse::Ok().body(format!("{}", string).replace("BlockDB ", "").replace("", ""))
 }
 
@@ -189,19 +214,40 @@ async fn last_100_blocks_api() -> impl Responder {
     let mut json = String::from("[");
     let mut lastest = getLastBlock(&mut db);
     for i in 0..100 {
+        
         let blockapi = getBlockByHeight(&mut db, lastest.height - i);
 
         let mut string = format!("{:?}", blockapi);
         json.push_str(&format!("{}", string).replace("BlockDB ", "").replace("", ""));
+        // replace coinbase with "coinbase" and so on
+  
+
         if i != 99 {
             json.push_str(",");
         }
     }
     json.push_str("]");
+    // remove any whitespace and stuff 
+    json = json.replace(" ", "");
+    // new line
+    json = json.replace("\n", "");
+    json = json.replace("coinbase", "\"coinbase\"");
+    json = json.replace("flags", "\"flags\"");
+    json = json.replace("hash", "\"hash\"");
+    json = json.replace("height", "\"height\"");
+    json = json.replace("identityRoot", "\"identityRoot\"");
+    json = json.replace("ipfsCid", "\"ipfsCid\"");
+    json = json.replace("isEmpty", "\"isEmpty\"");
+    json = json.replace("offlineAddress", "\"offlineAddress\"");
+    json = json.replace("parentHash", "\"parentHash\"");
+    json = json.replace("root", "\"root\"");
+    json = json.replace("timestamp", "\"timestamp\"");
+    json = json.replace("transactions", "\"transactions\"");
     HttpResponse::Ok().body(json)
 
 }
 
+use actix_web::middleware::DefaultHeaders;
 
 
 #[tokio::main]
@@ -241,6 +287,15 @@ async fn main() -> Result<(), std::io::Error> {
                 lastest_height = height;
                 sync_block(&mut db,api.clone(), height.try_into().unwrap()).await;
                 println!("Lastest block: {}, height: {}", _response["hash"].as_str().unwrap(), height);
+            } else {
+                println!("No new blocks");
+                // check for last 100 blocks
+                for i in 0..100 {
+                    let doesExist1 = doesExist(&mut db, (height - i).try_into().unwrap());
+                    if !doesExist1 {
+                        sync_block(&mut db,apiloop.clone(), (height - i).try_into().unwrap()).await;
+                    }
+                }
             }
             sleep(Duration::from_secs(1)).await;
 
@@ -248,28 +303,31 @@ async fn main() -> Result<(), std::io::Error> {
         
         
     });
-    task::spawn(async move{
-        let mut db = establish_connection();
+    // task::spawn(async move{
+    //     let mut db = establish_connection();
         
-        loop {
-            let mut apiloop = IdenaAPI::new("idena-restricted-node-key", "https://restricted.idena.io");
-            let mut lastest = getLastBlock(&mut db);
-            // this is thread to sync all blocks from lastest to 0 if block is not synced
-            let mut height = lastest.height;
-            for i in 0..height {
-                let doesExist1 = doesExist(&mut db, (height - i).try_into().unwrap());
-                if !doesExist1 {
-                    sync_block(&mut db,apiloop.clone(), (height - i).try_into().unwrap()).await;
-                }
-            }
-          }
-    });
+    //     loop {
+    //         let mut apiloop = IdenaAPI::new("idena-restricted-node-key", "https://restricted.idena.io");
+    //         let mut lastest = getLastBlock(&mut db);
+    //         // this is thread to sync all blocks from lastest to 0 if block is not synced
+    //         let mut height = lastest.height;
+    //         for i in 0..height {
+    //             let doesExist1 = doesExist(&mut db, (height - i).try_into().unwrap());
+    //             if !doesExist1 {
+    //                 sync_block(&mut db,apiloop.clone(), (height - i).try_into().unwrap()).await;
+    //             }
+    //         }
+    //       }
+    // });
 
 
 
     // wait for ctrl    
     HttpServer::new(|| {
         App::new()
+            // Access-Control-Allow-Origin
+            .wrap(DefaultHeaders::new().header("Access-Control-Allow-Origin", "*"))
+
             .service(index)
             .service(block_api)
             .service(block_api_height)

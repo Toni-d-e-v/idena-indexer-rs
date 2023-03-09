@@ -8,10 +8,10 @@ Currently it is in early development stage, so it is not recommended to use it i
 - Indexes all blocks,
 - PostgreSQl + diesel ORM
 ## Roadmap
+- [x] API for querying data
 - [x] Index all blocks
 - [ ] Index all transactions
 - [ ] Index all accounts
-- [ ] API for querying data
 - [ ] Websocket API for subscribing to new blocks
 - [ ] Websocket API for subscribing to new transactions
 - [ ] Websocket API for subscribing to new accounts

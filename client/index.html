@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Last 100 Blocks</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://unpkg.com/@picocss/pico@1.*/css/pico.min.css">
+  </head>
+  <body>
+    <div class="grid">
+      <div class="col-12">
+        <h1>Idena Blockchain Explorer</h1>
+        <p>
+            Rust indexer implementation for Idena blockchain.
+        </p>
+        <a href="github.com/Idena-blockchain-explorer">Github</a>
+        <small> 0xa15de4839ed11ac66a6ff0a4e58fe90d99e67b3d for donations</small>
+
+      </div>
+      <div class="col-12">
+        <form id="grid" action="javascript:search()">
+            <input type="text" id="search" placeholder="Search by block height or hash">
+        </form>
+
+      </div>
+
+    </div>
+
+    <article>
+        <table id="blockTable">
+            <thead>
+              <tr>
+                <th>Height</th>
+                <th>Timestamp</th>
+                <th>Hash</th>
+                <th>Transactions</th>
+              </tr>
+            </thead>
+            <tbody>
+            </tbody>
+          </table>
+    </article>
+
+    <button onclick="loadMore()">Load more</button>
+  </body>
+  <script src="script.js"></script>
+</html>
