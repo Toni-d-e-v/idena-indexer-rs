@@ -29,6 +29,24 @@ const Home = () => {
         fetch_last100();
         setFirstLoad(false);
     }
+    const search = () => {
+        const search = document.querySelector('input').value;
+        if (search.startsWith('0x')) {
+            if (search.length === 66) {
+                window.location.href = '/tx/' + search;
+            }
+            if (search.length === 42) {
+                window.location.href = '/address/' + search;
+            }
+        } else {
+            window.location.href = '/block/' + search;
+        } 
+        // if num
+        if (!isNaN(search)) {
+            window.location.href = '/block/' + search;
+        }
+    }
+
 
     // fetch 100 every 2.5 seconds
     setInterval(fetch_last100, 2500);
@@ -40,7 +58,7 @@ const Home = () => {
         <div>
             <nav>
                 <h1>Idena Blockchain Explorer</h1>
-                <input type="text" placeholder="Search for a block or transaction" /> <button>Search</button>
+                <input type="text" id="search" placeholder="block, address, transaction" /> <button onClick={search}>Search</button>
 
             </nav>
             <small>
