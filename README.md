@@ -20,7 +20,7 @@ Currently it is in early development stage, so it is not recommended to use it i
 - [x] API for querying data
 - [x] Index all blocks
 - [x] Index all transactions
+- [x] UI 
 - [ ] Websocket API for subscribing to new blocks
 - [ ] Websocket API for subscribing to new transactions
 - [ ] Websocket API for subscribing to new accounts
-- [ ] UI 

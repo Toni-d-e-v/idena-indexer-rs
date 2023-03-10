@@ -109,7 +109,7 @@ pub fn doesExist(conn: &mut PgConnection, height: i32) -> bool {
     result
 }
 
-async fn sync_tx ( conn: &mut PgConnection,api: IdenaAPI, hash: String, height: i32) {
+async fn sync_tx ( conn: &mut PgConnection,api: IdenaAPI, hash: String, height: i32, timestamp: String) {
     let tx = match api.transaction(&hash).await {
         Ok(value) => value,
         Err(e) => {
@@ -212,7 +212,7 @@ async fn sync_block(conn: &mut PgConnection,api: IdenaAPI, height: usize) {
                     transactions_ar.push_str(",");
                 }
                 // sync
-                sync_tx(conn,api.clone(),transaction.as_str().unwrap().to_string(),block["height"].as_u64().unwrap() as i32).await;
+                sync_tx(conn,api.clone(),transaction.as_str().unwrap().to_string(),block["height"].as_u64().unwrap() as i32,block["timestamp"].as_str().unwrap().to_string()).await;
 
             }
             transactions_ar
@@ -388,6 +388,10 @@ async fn account_api(path: web::Path<(String,)>) -> impl Responder {
 
 }
 
+// All calls
+
+
+
 use actix_web::middleware::DefaultHeaders;
 
 
@@ -460,6 +464,8 @@ async fn main() -> Result<(), std::io::Error> {
     //         }
     //       }
     // });
+    // Enable if you want to sync all blockchain from the lastest block to the 0
+    
 
 
 
