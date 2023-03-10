@@ -15,8 +15,7 @@ use std::fmt::Display;
 use std::fmt::Formatter;
 use std::sync::Arc;
 use tokio::sync::Mutex;
-mod block;
-use block::Block;
+
 use diesel::pg::PgConnection;
 use diesel::prelude::*;
 use dotenvy::dotenv;
@@ -91,14 +90,14 @@ async fn sync_block(conn: &mut PgConnection,api: IdenaAPI, height: usize) {
         }
     };
     let string = format!("block-{}", (block["height"].as_u64().unwrap()).to_string());
-    let mut block_struct = Block {
+    let mut block_struct = BlockDB {
         coinbase: block["coinbase"].as_str().unwrap().to_string(),
         flags: match block["flags"].as_str() {
             Some(value) => value.to_string(),
             None => String::from(""),
         },
         hash: block["hash"].as_str().unwrap().to_string(),
-        height: block["height"].as_u64().unwrap(),
+        height: block["height"].as_u64().unwrap() as i32,
         identityRoot: block["identityRoot"].as_str().unwrap().to_string(),
         ipfsCid: match block["ipfsCid"].as_str() {
             Some(value) => value.to_string(),
@@ -111,7 +110,7 @@ async fn sync_block(conn: &mut PgConnection,api: IdenaAPI, height: usize) {
         },
         parentHash: block["parentHash"].as_str().unwrap().to_string(),
         root: block["root"].as_str().unwrap().to_string(),
-        timestamp: block["timestamp"].as_u64().unwrap(),
+        timestamp: block["timestamp"].as_u64().unwrap() as i32,
         transactions: if block["transactions"].is_array() {
             let mut transactions = String::from("");
             for transaction in block["transactions"].as_array().unwrap() {
