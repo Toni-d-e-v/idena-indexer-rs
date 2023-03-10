@@ -40,7 +40,7 @@ const Home = () => {
         <div>
             <nav>
                 <h1>Idena Blockchain Explorer</h1>
-                <input type="text" placeholder="Search for a block or transaction" />
+                <input type="text" placeholder="Search for a block or transaction" /> <button>Search</button>
 
             </nav>
             <small>

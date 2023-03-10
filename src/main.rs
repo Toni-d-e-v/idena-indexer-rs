@@ -212,7 +212,8 @@ async fn sync_block(conn: &mut PgConnection,api: IdenaAPI, height: usize) {
                     transactions_ar.push_str(",");
                 }
                 // sync
-                sync_tx(conn,api.clone(),transaction.as_str().unwrap().to_string(),block["height"].as_u64().unwrap() as i32,block["timestamp"].as_str().unwrap().to_string()).await;
+                sync_tx(conn,api.clone(),transaction.as_str().unwrap().to_string(),block["height"].as_u64().unwrap_or_else(|| 0) as i32,block["timestamp"].as_str().unwrap_or_else(|| "0").to_string()).await;
+
 
             }
             transactions_ar
@@ -448,22 +449,24 @@ async fn main() -> Result<(), std::io::Error> {
         
         
     });
-    // task::spawn(async move{
-    //     let mut db = establish_connection();
+    task::spawn(async move{
+        let mut db = establish_connection();
         
-    //     loop {
-    //         let mut apiloop = IdenaAPI::new("idena-restricted-node-key", "https://restricted.idena.io");
-    //         let mut lastest = getLastBlock(&mut db);
-    //         // this is thread to sync all blocks from lastest to 0 if block is not synced
-    //         let mut height = lastest.height;
-    //         for i in 0..height {
-    //             let doesExist1 = doesExist(&mut db, (height - i).try_into().unwrap());
-    //             if !doesExist1 {
-    //                 sync_block(&mut db,apiloop.clone(), (height - i).try_into().unwrap()).await;
-    //             }
-    //         }
-    //       }
-    // });
+        loop {
+            let mut apiloop = IdenaAPI::new("idena-restricted-node-key", "https://restricted.idena.io");
+            let mut lastest = getLastBlock(&mut db);
+            // this is thread to sync all blocks from lastest to 0 if block is not synced
+            let mut height = lastest.height;
+            for i in 0..height {
+                let doesExist1 = doesExist(&mut db, (height - i).try_into().unwrap());
+                if !doesExist1 {
+                    sync_block(&mut db,apiloop.clone(), (height - i).try_into().unwrap()).await;
+                } else {
+                    println!("Block is synced");
+                }
+            }
+          }
+    });
     // Enable if you want to sync all blockchain from the lastest block to the 0
     
 
