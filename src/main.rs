@@ -61,6 +61,23 @@ pub fn getTxByHash(conn: &mut PgConnection, hash: String) -> TransactionDB {
     result
 }
 
+async fn getTxsByAddress(conn: &mut PgConnection, address: String) -> Vec<String> {
+    use crate::schema::transactions::dsl::{from_ as tx_address, transactions};
+    let results = transactions
+        .filter(tx_address.eq(address.clone()))
+        .load::<TransactionDB>(conn)
+        .expect(&("Error loading transactions by address ".to_owned() + &address));
+
+   
+    let mut tx_hashes: Vec<String> = Vec::new();
+    for tx in results {
+        tx_hashes.push(tx.hash);
+    }
+    tx_hashes
+ 
+}
+
+
 pub fn getBlockByHeight(conn: &mut PgConnection, height1: i32) -> BlockDB {
     use crate::schema::blocks::dsl::{blocks, height as block_height};
     let result = blocks
@@ -349,6 +366,7 @@ async fn last_100_blocks_api() -> impl Responder {
 }
 
 
+
 #[get("/tx/{hash_tx}")]
 async fn tx_api(path: web::Path<(String,)>) -> impl Responder {
     let mut db = establish_connection();
@@ -357,6 +375,17 @@ async fn tx_api(path: web::Path<(String,)>) -> impl Responder {
     let string = fix_string_tx(string);
 
     HttpResponse::Ok().body(format!("{}", string).replace("TxDB ", "").replace("", ""))
+}
+#[get("/account/{address}")]
+async fn account_api(path: web::Path<(String,)>) -> impl Responder {
+    let mut idenaapi = IdenaAPI::new("idena-restricted-node-key", "https://restricted.idena.io");
+    let mut balance = idenaapi.balance(&path.0.clone()).await.unwrap();
+    let mut db = establish_connection();
+    let mut txs = getTxsByAddress(&mut db, path.0.clone().to_string()).await;
+    // getTxsByAddress -> vec<String> 
+    HttpResponse::Ok().body(format!("{{\"address\": \"{}\", \"balance\": {}, \"txs\": {:?}}}", path.0.clone(), balance, txs))
+    
+
 }
 
 use actix_web::middleware::DefaultHeaders;
@@ -446,6 +475,7 @@ async fn main() -> Result<(), std::io::Error> {
             .service(last_block_api)
             .service(last_100_blocks_api)
             .service(tx_api)
+            .service(account_api)
             
     })
     .bind(("127.0.0.1", 8080))?

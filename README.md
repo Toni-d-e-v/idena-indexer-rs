@@ -7,6 +7,15 @@ Currently it is in early development stage, so it is not recommended to use it i
 - Fast and lightweight indexer built in rust
 - Indexes all blocks,
 - PostgreSQl + diesel ORM
+### Calls
+```
+/block/{hash_block}
+/block/height/{height}
+/lastblock
+/last100blocks
+/tx/{hash_tx}
+/account/{address}
+```
 ## Roadmap
 - [x] API for querying data
 - [x] Index all blocks
