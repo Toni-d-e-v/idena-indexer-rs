@@ -1,7 +1,8 @@
 # idena-indexer-rs
 
-Idena blockchain indexer built in rust
-Currently it is in early development stage, so it is not recommended to use it in production.
+Idena blockchain indexer built in rust and explorer in react.js
+- You can use this indexer to build your own explorer or to query data from the blockchain
+
 
 ## Features
 - Fast and lightweight indexer built in rust
