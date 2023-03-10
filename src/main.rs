@@ -37,7 +37,10 @@ pub fn establish_connection() -> PgConnection {
 
 
 use self::models::{BlockDB, NewBlockDB};
+use self::models::{TransactionDB, NewTransactionDB};
 use crate::schema::blocks::dsl::blocks;
+use crate::schema::transactions::dsl::transactions;
+
 pub fn getBlockByHash(conn: &mut PgConnection, hash: String) -> BlockDB {
     use crate::schema::blocks::dsl::{blocks, hash as block_hash};
     let result = blocks
@@ -45,6 +48,16 @@ pub fn getBlockByHash(conn: &mut PgConnection, hash: String) -> BlockDB {
         .first::<BlockDB>(conn)
         .expect(&("Error loading block by hash ".to_owned() + &hash));
     println!("Block Found: {}", result.hash);
+    result
+}
+
+pub fn getTxByHash(conn: &mut PgConnection, hash: String) -> TransactionDB {
+    use crate::schema::transactions::dsl::{hash_ as tx_hash, transactions};
+    let result = transactions
+        .filter(tx_hash.eq(hash.clone()))
+        .first::<TransactionDB>(conn)
+        .expect(&("Error loading transaction by hash ".to_owned() + &hash));
+    println!("Transaction Found: {}", result.hash);
     result
 }
 
@@ -78,6 +91,69 @@ pub fn doesExist(conn: &mut PgConnection, height: i32) -> bool {
         .is_ok();
     result
 }
+
+async fn sync_tx ( conn: &mut PgConnection,api: IdenaAPI, hash: String, height: i32) {
+    let tx = match api.transaction(&hash).await {
+        Ok(value) => value,
+        Err(e) => {
+            println!("Error: {}", e);
+            return;
+        }
+    };
+    println!("Transaction: {:?}", tx);
+    let tx_struct = TransactionDB {
+        epoch: tx["epoch"].as_u64().unwrap() as i32,
+        blockheight: match tx["blockHeight"].as_u64() {
+            Some(value) => value as i32,
+            None => height,
+        },
+        blockhash: tx["blockHash"].as_str().unwrap().to_string(),
+        hash: tx["hash"].as_str().unwrap().to_string(),
+        type_: tx["type"].as_str().unwrap().to_string(),
+        // time is string
+        timestamp: match tx["timestamp"].as_str() {
+            Some(value) => value.to_string(),
+            None => "0".to_string(),
+        },
+        from: tx["from"].as_str().unwrap().to_string(),
+        to: match tx["to"].as_str() {
+            Some(value) => value.to_string(),
+            None => "0".to_string(),
+        },
+        amount: tx["amount"].as_str().unwrap().to_string(),
+        tips: tx["tips"].as_str().unwrap().to_string(),
+        maxfee: tx["maxFee"].as_str().unwrap().to_string(),
+        fee: match tx["fee"].as_str() {
+            Some(value) => value.to_string(),
+            None => "0".to_string(),
+        },
+        size: match tx["size"].as_u64() {
+            Some(value) => value as i32,
+            None => 0,
+        },
+        nonce: tx["nonce"].as_u64().unwrap() as i32,
+    };
+    let tx_db = NewTransactionDB {
+        epoch: &(tx_struct.epoch as i32),
+        blockheight: &(tx_struct.blockheight as i32),
+        blockhash: &tx_struct.blockhash,
+        hash_: &tx_struct.hash,
+        type_: &tx_struct.type_,
+        timestamp_: &tx_struct.timestamp,
+        from_: &tx_struct.from,
+        to_: &tx_struct.to,
+        amount: &tx_struct.amount,
+        tips: &tx_struct.tips,
+        maxfee: &tx_struct.maxfee,
+        fee: &tx_struct.fee,
+        size: &(tx_struct.size as i32),
+        nonce: &(tx_struct.nonce as i32),
+    };
+    let _result =  diesel::insert_into(transactions)
+        .values(&tx_db)
+        .execute(conn);
+}
+
 async fn sync_block(conn: &mut PgConnection,api: IdenaAPI, height: usize) {
     
 
@@ -112,14 +188,17 @@ async fn sync_block(conn: &mut PgConnection,api: IdenaAPI, height: usize) {
         root: block["root"].as_str().unwrap().to_string(),
         timestamp: block["timestamp"].as_u64().unwrap() as i32,
         transactions: if block["transactions"].is_array() {
-            let mut transactions = String::from("");
+            let mut transactions_ar = String::from("");
             for transaction in block["transactions"].as_array().unwrap() {
-                transactions.push_str(&transaction.as_str().unwrap().to_string());
+                transactions_ar.push_str(&transaction.as_str().unwrap().to_string());
                 if transaction != block["transactions"].as_array().unwrap().last().unwrap() {
-                    transactions.push_str(",");
+                    transactions_ar.push_str(",");
                 }
+                // sync
+                sync_tx(conn,api.clone(),transaction.as_str().unwrap().to_string(),block["height"].as_u64().unwrap() as i32).await;
+
             }
-            transactions
+            transactions_ar
         } else {
             String::from("")
         },
@@ -153,6 +232,7 @@ async fn sync_block(conn: &mut PgConnection,api: IdenaAPI, height: usize) {
 
 
 
+
 use actix_web::{get, web, App, HttpServer, Responder};
 use actix_web::{HttpResponse};
 
@@ -173,6 +253,28 @@ fn fix_string(mut string: String) -> String {
     string = string.replace("offlineAddress", "\"offlineAddress\"");
     string = string.replace("BlockDB", "");
     string 
+}
+// TransactionDB { epoch: 103, blockheight: 5707712, blockhash: "0x459ea6cbaa13f0b77026260e5042bca5f8f4980a7dbe7e8da53c875e18b67bfd", hash: "0x99b9b804e1a7f5aa9f381f2fb76a9af36e7c36226f62129565a5ea2a72e13e0d", type_: "replenishStake", timestamp: "0", from: "0x09ed45c08be88258e1dd59d3f7d0718e3e867588", to: "0x09ed45c08be88258e1dd59d3f7d0718e3e867588", amount: "10.1372563540503", tips: "0", maxfee: "0.00556586260868", fee: "0", size: 0, nonce: 131 }
+fn fix_string_tx(mut string: String) -> String {
+    string.replace("TransactionDB ", "").replace("", "");
+    string = string.replace("\n", "");
+    string = string.replace("epoch", "\"epoch\"");
+    string = string.replace("blockheight", "\"block_height\"");
+    string = string.replace("blockhash", "\"block_h\"");
+    string = string.replace("hash", "\"hash\"");
+    string = string.replace("type_", "\"type\"");
+    string = string.replace("timestamp", "\"timestamp\"");
+    string = string.replace("from", "\"from\"");
+    string = string.replace("to", "\"to\"");
+    string = string.replace("amount", "\"amount\"");
+    string = string.replace("tips", "\"tips\"");
+    string = string.replace("maxfee", "\"maxf_ee\"");
+    string = string.replace("fee", "\"fee\"");
+    string = string.replace("size", "\"size\"");
+    string = string.replace("nonce", "\"nonce\"");
+    string = string.replace("TransactionDB", "");
+    string 
+
 }
 
 #[get("/")]
@@ -244,6 +346,17 @@ async fn last_100_blocks_api() -> impl Responder {
     json = json.replace("transactions", "\"transactions\"");
     HttpResponse::Ok().body(json)
 
+}
+
+
+#[get("/tx/{hash_tx}")]
+async fn tx_api(path: web::Path<(String,)>) -> impl Responder {
+    let mut db = establish_connection();
+    let txapi = getTxByHash(&mut db, path.0.clone());
+    let mut string = format!("{:?}", txapi);
+    let string = fix_string_tx(string);
+
+    HttpResponse::Ok().body(format!("{}", string).replace("TxDB ", "").replace("", ""))
 }
 
 use actix_web::middleware::DefaultHeaders;
@@ -332,6 +445,7 @@ async fn main() -> Result<(), std::io::Error> {
             .service(block_api_height)
             .service(last_block_api)
             .service(last_100_blocks_api)
+            .service(tx_api)
             
     })
     .bind(("127.0.0.1", 8080))?

@@ -10,8 +10,7 @@ Currently it is in early development stage, so it is not recommended to use it i
 ## Roadmap
 - [x] API for querying data
 - [x] Index all blocks
-- [ ] Index all transactions
-- [ ] Index all accounts
+- [x] Index all transactions
 - [ ] Websocket API for subscribing to new blocks
 - [ ] Websocket API for subscribing to new transactions
 - [ ] Websocket API for subscribing to new accounts
