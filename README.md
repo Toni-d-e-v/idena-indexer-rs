@@ -1,4 +1,6 @@
 # idena-indexer-rs
+- Donate: 0xa15de4839ed11ac66a6ff0a4e58fe90d99e67b3d (IDENA)
+
 
 Idena blockchain indexer built in rust and explorer in react.js
 - You can use this indexer to build your own explorer or to query data from the blockchain
@@ -16,6 +18,7 @@ Idena blockchain indexer built in rust and explorer in react.js
 /last100blocks
 /tx/{hash_tx}
 /account/{address}
+/epoch
 ```
 ## Roadmap
 - [x] API for querying data

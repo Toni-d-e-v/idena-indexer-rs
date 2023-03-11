@@ -1,6 +1,7 @@
 // Import basic react state
 import React from 'react';
 import '../App.css';
+import Search from './Search.js';
 
 const Account = () => {
     const [url, setUrl] = React.useState('http://127.0.0.1:8080');
@@ -36,12 +37,14 @@ const Account = () => {
 
     return (
         <div>
-            <h1>Idena Block Explorer - Account <a href="/">Home</a></h1> 
-            <h3>{AccountData.address}</h3>
+            <Search />
+            <h1>Account - <small>{AccountData.address}</small></h1>
+            <article>
             { AccountData.balance ? <h3> Balance: {AccountData.balance.balance} </h3> : null }
             { AccountData.balance ? <h3> Stake: {AccountData.balance.stake} </h3> : null }
             { AccountData.balance ? <h3> Replenished Stake: {AccountData.balance.replenishedStake} </h3> : null }
             { AccountData.balance ? <h3> Nonce: {AccountData.balance.nonce} </h3> : null }
+            </article>
   
 
 

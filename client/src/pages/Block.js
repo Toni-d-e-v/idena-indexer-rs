@@ -1,6 +1,7 @@
 // Import basic react state
 import React from 'react';
 import '../App.css';
+import Search from './Search.js';
 
 const Block = () => {
     const [url, setUrl] = React.useState('http://127.0.0.1:8080');
@@ -76,6 +77,7 @@ const Block = () => {
 
     return (
         <div>
+            <Search />
             <h1>Idena Block Explorer - Block <a href="/">Home</a></h1> 
             <h2>Block {blockData.height}</h2>
             <table id="blockTable">

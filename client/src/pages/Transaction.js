@@ -1,5 +1,7 @@
 // Import basic react state
 import React from 'react';
+import Search from './Search.js';
+
 import '../App.css';
 
 const Transaction = () => {
@@ -25,7 +27,9 @@ const Transaction = () => {
 
 
     return (
+
         <div>
+            <Search />
             <h1>Idena Block Explorer - Transaction <a href="/">Home</a></h1> 
             <h3>{txData.hash}</h3>
             <h3> Epoch: {txData.epoch} </h3>

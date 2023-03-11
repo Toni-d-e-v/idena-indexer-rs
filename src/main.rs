@@ -41,13 +41,13 @@ use self::models::{TransactionDB, NewTransactionDB};
 use crate::schema::blocks::dsl::blocks;
 use crate::schema::transactions::dsl::transactions;
 
+
 pub fn getBlockByHash(conn: &mut PgConnection, hash: String) -> BlockDB {
     use crate::schema::blocks::dsl::{blocks, hash as block_hash};
     let result = blocks
         .filter(block_hash.eq(hash.clone()))
         .first::<BlockDB>(conn)
         .expect(&("Error loading block by hash ".to_owned() + &hash));
-    println!("Block Found: {}", result.hash);
     result
 }
 
@@ -57,7 +57,6 @@ pub fn getTxByHash(conn: &mut PgConnection, hash: String) -> TransactionDB {
         .filter(tx_hash.eq(hash.clone()))
         .first::<TransactionDB>(conn)
         .expect(&("Error loading transaction by hash ".to_owned() + &hash));
-    println!("Transaction Found: {}", result.hash);
     result
 }
 
@@ -85,7 +84,6 @@ pub fn getBlockByHeight(conn: &mut PgConnection, height1: i32) -> BlockDB {
         .first::<BlockDB>(conn)
         .expect(&("Error loading block by height ".to_owned() + &height1.to_string()));
     
-    println!("Block Found: {}", result.hash);
     result
 }
 
@@ -96,7 +94,6 @@ pub fn getLastBlock(conn: &mut PgConnection) -> BlockDB {
         .first::<BlockDB>(conn)
         .expect("Error loading last block");
     
-    println!("Block Found: {}", result.hash);
     result
 }
 
@@ -305,7 +302,7 @@ async fn block_api(path: web::Path<(String,)>) -> impl Responder {
     let blockapi = getBlockByHash(&mut db, path.0.clone());
     let mut string = format!("{:?}", blockapi);
     let string = fix_string(string);
-
+    
     HttpResponse::Ok().body(format!("{}", string).replace("BlockDB ", "").replace("", ""))
 }
 #[get("/block/height/{height}")]
@@ -388,6 +385,12 @@ async fn account_api(path: web::Path<(String,)>) -> impl Responder {
     
 
 }
+#[get("/epoch")]
+async fn epoch_api() -> impl Responder {
+    let mut idenaapi = IdenaAPI::new("idena-restricted-node-key", "https://restricted.idena.io");
+    let mut epoch = idenaapi.epoch().await.unwrap();
+    HttpResponse::Ok().body(format!("{}", epoch))
+}
 
 // All calls
 
@@ -424,23 +427,31 @@ async fn main() -> Result<(), std::io::Error> {
         let block = getBlockByHeight(&mut db, (lastest["height"].as_u64().unwrap()).try_into().unwrap());
         let mut lastest_height = 0;
         println!("Lastest block: {}", block.hash);
+        let mut check_height = 0;
+
         loop {
             let mut apiloop = IdenaAPI::new("idena-restricted-node-key", "https://restricted.idena.io");
+
 
             let _response = apiloop.last_block().await.unwrap();
             let height = _response["height"].as_u64().unwrap();
             if height > lastest_height {
+                check_height = 1;
                 lastest_height = height;
                 sync_block(&mut db,api.clone(), height.try_into().unwrap()).await;
                 println!("Lastest block: {}, height: {}", _response["hash"].as_str().unwrap(), height);
             } else {
                 println!("No new blocks");
                 // check for last 100 blocks
-                for i in 0..100 {
-                    let doesExist1 = doesExist(&mut db, (height - i).try_into().unwrap());
-                    if !doesExist1 {
-                        sync_block(&mut db,apiloop.clone(), (height - i).try_into().unwrap()).await;
+                if (check_height == 1) {
+                
+                    for i in 0..100 {
+                        let doesExist1 = doesExist(&mut db, (height - i).try_into().unwrap());
+                        if !doesExist1 {
+                            sync_block(&mut db,apiloop.clone(), (height - i).try_into().unwrap()).await;
+                        }
                     }
+                    check_height = 0;
                 }
             }
             sleep(Duration::from_secs(1)).await;
@@ -449,24 +460,24 @@ async fn main() -> Result<(), std::io::Error> {
         
         
     });
-    task::spawn(async move{
-        let mut db = establish_connection();
+    // task::spawn(async move{
+    //     let mut db = establish_connection();
         
-        loop {
-            let mut apiloop = IdenaAPI::new("idena-restricted-node-key", "https://restricted.idena.io");
-            let mut lastest = getLastBlock(&mut db);
-            // this is thread to sync all blocks from lastest to 0 if block is not synced
-            let mut height = lastest.height;
-            for i in 0..height {
-                let doesExist1 = doesExist(&mut db, (height - i).try_into().unwrap());
-                if !doesExist1 {
-                    sync_block(&mut db,apiloop.clone(), (height - i).try_into().unwrap()).await;
-                } else {
-                    println!("Block is synced");
-                }
-            }
-          }
-    });
+    //     loop {
+    //         let mut apiloop = IdenaAPI::new("idena-restricted-node-key", "https://restricted.idena.io");
+    //         let mut lastest = getLastBlock(&mut db);
+    //         // this is thread to sync all blocks from lastest to 0 if block is not synced
+    //         let mut height = lastest.height;
+    //         for i in 0..height {
+    //             let doesExist1 = doesExist(&mut db, (height - i).try_into().unwrap());
+    //             if !doesExist1 {
+    //                 sync_block(&mut db,apiloop.clone(), (height - i).try_into().unwrap()).await;
+    //             } else {
+    //                 println!("Block is synced");
+    //             }
+    //         }
+    //       }
+    // });
     // Enable if you want to sync all blockchain from the lastest block to the 0
     
 
@@ -485,6 +496,7 @@ async fn main() -> Result<(), std::io::Error> {
             .service(last_100_blocks_api)
             .service(tx_api)
             .service(account_api)
+            .service(epoch_api)
             
     })
     .bind(("127.0.0.1", 8080))?
