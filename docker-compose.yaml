@@ -29,3 +29,11 @@ services:
       POSTGRES_PASSWORD: 123456 # The PostgreSQL password (useful to connect to the database)
       POSTGRES_DB: warden # The PostgreSQL default database (automatically created at first launch)
   
+  indexer:
+    build: . 
+    ports:
+      - 8080:8080
+    depends_on:
+      - database
+    environment:
+      DATABASE_URL: postgres://db:123456@database/warden
