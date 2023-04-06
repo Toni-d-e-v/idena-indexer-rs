@@ -17,14 +17,23 @@ Idena blockchain indexer built in rust and explorer in react.js
 - Rust
 - Cargo
 
+- Backend
 ```
 git clone https://github.com/Toni-d-e-v/idena-indexer-rs
+mv .env.example .env
 docker-compose up -d
 cargo install diesel_cli
 diesel migration run
 cargo run
 ```
-
+- Frontend
+```
+cd frontend
+npm install
+npm build 
+# or
+npm start
+```
 
 ## Screenshot
 ![image](https://user-images.githubusercontent.com/62844491/224516242-3069c43d-8a7b-46dd-968a-0d3ff9d0ea8d.png)
