@@ -32,7 +32,8 @@ services:
   indexer:
     build: . 
     ports:
-      - 8080:8080
+    #  port outside container is 1234 but inside container is 8080
+      - 1234:8080
     depends_on:
       - database
     environment:
