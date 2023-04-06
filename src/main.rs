@@ -445,7 +445,7 @@ async fn main() -> Result<(), std::io::Error> {
                 // check for last 100 blocks
                 if (check_height == 1) {
                 
-                    for i in 0..100 {
+                    for i in 0..4 {
                         let doesExist1 = doesExist(&mut db, (height - i).try_into().unwrap());
                         if !doesExist1 {
                             sync_block(&mut db,apiloop.clone(), (height - i).try_into().unwrap()).await;
