@@ -401,9 +401,34 @@ use actix_web::middleware::DefaultHeaders;
 
 #[tokio::main]
 async fn main() -> Result<(), std::io::Error> {
+    let mut start_old = false;
+    let mut port = 8080;
+    // args
+    let args: Vec<String> = env::args().collect();
+    if args.len() < 2 {
+        println!("Usage: ./idena-rust-indexer --index-old-blocks <port>");
+        return Ok(());
+    }
+    if args.len() == 3 {
+        if args[1] == "--index-old-blocks" {
+            start_old = true;
+            port = args[2].parse::<i32>().unwrap();
+        }
+        if args[1] == "--port" {
+            port = args[2].parse::<i32>().unwrap();
+        }
+        if args[2] == "--port" {
+            port = args[3].parse::<i32>().unwrap();
+        }
+        if args[2] == "--index-old-blocks" {
+            start_old = true;
+            port = args[3].parse::<i32>().unwrap();
+        }
+    }
+    
+        
+    println!("Starting indexer with args: --index-old-blocks: {}, --port: {}", start_old, port);
   
-
-
     task::spawn(async move{
         let mut api = IdenaAPI::new("idena-restricted-node-key", "https://restricted.idena.io");
 
@@ -460,25 +485,27 @@ async fn main() -> Result<(), std::io::Error> {
         
         
     });
-    task::spawn(async move{
-        let mut db = establish_connection();
-        
-        loop {
-            let mut apiloop = IdenaAPI::new("idena-restricted-node-key", "https://restricted.idena.io");
-            let mut lastest = getLastBlock(&mut db);
-            // this is thread to sync all blocks from lastest to 0 if block is not synced
-            let mut height = lastest.height;
-            for i in 0..height {
-                let doesExist1 = doesExist(&mut db, (height - i).try_into().unwrap());
-                if !doesExist1 {
-                    sync_block(&mut db,apiloop.clone(), (height - i).try_into().unwrap()).await;
-                } else {
-                    println!("Block is synced");
+    if start_old {
+        task::spawn(async move{
+            let mut db = establish_connection();
+            
+            loop {
+                let mut apiloop = IdenaAPI::new("idena-restricted-node-key", "https://restricted.idena.io");
+                let mut lastest = getLastBlock(&mut db);
+                // this is thread to sync all blocks from lastest to 0 if block is not synced
+                let mut height = lastest.height;
+                for i in 0..height {
+                    let doesExist1 = doesExist(&mut db, (height - i).try_into().unwrap());
+                    if !doesExist1 {
+                        sync_block(&mut db,apiloop.clone(), (height - i).try_into().unwrap()).await;
+                    } else {
+                        println!("Block is synced");
+                    }
                 }
             }
-          }
-    });
-    // Enable if you want to sync all blockchain from the lastest block to the 0
+        });
+    }
+
     
 
 
@@ -499,7 +526,7 @@ async fn main() -> Result<(), std::io::Error> {
             .service(epoch_api)
             
     })
-    .bind(("127.0.0.1", 8080))?
+    .bind(("127.0.0.1", port.to_string().parse::<u16>().unwrap()))?
     .run()
     .await
 
