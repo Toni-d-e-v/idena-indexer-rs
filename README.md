@@ -10,6 +10,7 @@ Idena blockchain indexer built in rust and explorer in react.js
 - Fast and lightweight indexer built in rust
 - Indexes all blocks,
 - PostgreSQl + diesel ORM
+<<<<<<< HEAD
 ## How to run
 ### Requirements
 - Docker
@@ -36,6 +37,8 @@ npm start
 ```
 
 
+=======
+>>>>>>> parent of 7794097 (Docker-compose-db)
 ## Screenshot
 ![image](https://user-images.githubusercontent.com/62844491/224516242-3069c43d-8a7b-46dd-968a-0d3ff9d0ea8d.png)
 
