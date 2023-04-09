@@ -1,3 +1,4 @@
+
 # A Docker Compose must always start with the version tag.
 # We use '3' because it's the last version.
 version: '3'
@@ -28,13 +29,3 @@ services:
       POSTGRES_USER: db # The PostgreSQL user (useful to connect to the database)
       POSTGRES_PASSWORD: 123456 # The PostgreSQL password (useful to connect to the database)
       POSTGRES_DB: warden # The PostgreSQL default database (automatically created at first launch)
-  
-  indexer:
-    build: . 
-    ports:
-    #  port outside container is 1234 but inside container is 8080
-      - 1234:8080
-    depends_on:
-      - database
-    environment:
-      DATABASE_URL: postgres://db:123456@database/warden
