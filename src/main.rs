@@ -1,28 +1,24 @@
-use std::fmt::format;
-use tokio::io;
 use api::IdenaAPI;
-use tokio::io::AsyncWriteExt;
 use tokio::task;
 use tokio::time::Duration;
-// sleep
 use tokio::time::sleep;
-use serde::{Deserialize, Serialize};
-use serde_json::Value;
-use std::collections::HashMap;
-use std::error::Error;
-use std::fmt;
-use std::fmt::Display;
-use std::fmt::Formatter;
-use std::sync::Arc;
-use tokio::sync::Mutex;
-
+use actix_web::{get, web, App, HttpServer, Responder};
+use actix_web::{HttpResponse};
 use diesel::pg::PgConnection;
 use diesel::prelude::*;
 use dotenvy::dotenv;
 use std::env;
 pub mod models;
-
 pub mod schema;
+use self::models::{BlockDB, NewBlockDB};
+use self::models::{TransactionDB, NewTransactionDB};
+use crate::schema::blocks::dsl::blocks;
+use crate::schema::transactions::dsl::transactions;
+use actix_web::middleware::DefaultHeaders;
+// allow snake case
+#[allow(non_snake_case)]
+
+
 
 pub fn establish_connection() -> PgConnection {
     dotenv().ok();
@@ -33,14 +29,6 @@ pub fn establish_connection() -> PgConnection {
         .unwrap_or_else(|_| panic!("Error connecting to {}", database_url))
 
 }
-
-
-
-use self::models::{BlockDB, NewBlockDB};
-use self::models::{TransactionDB, NewTransactionDB};
-use crate::schema::blocks::dsl::blocks;
-use crate::schema::transactions::dsl::transactions;
-
 
 pub fn getBlockByHash(conn: &mut PgConnection, hash: String) -> BlockDB {
     use crate::schema::blocks::dsl::{blocks, hash as block_hash};
@@ -106,7 +94,7 @@ pub fn doesExist(conn: &mut PgConnection, height: i32) -> bool {
     result
 }
 
-async fn sync_tx ( conn: &mut PgConnection,api: IdenaAPI, hash: String, height: i32, timestamp: String) {
+async fn sync_tx ( conn: &mut PgConnection,api: IdenaAPI, hash: String, height: i32, _timestamp: String) {
     let tx = match api.transaction(&hash).await {
         Ok(value) => value,
         Err(e) => {
@@ -179,8 +167,8 @@ async fn sync_block(conn: &mut PgConnection,api: IdenaAPI, height: usize) {
             return;
         }
     };
-    let string = format!("block-{}", (block["height"].as_u64().unwrap()).to_string());
-    let mut block_struct = BlockDB {
+    let _string = format!("block-{}", (block["height"].as_u64().unwrap()).to_string());
+    let block_struct = BlockDB {
         coinbase: block["coinbase"].as_str().unwrap().to_string(),
         flags: match block["flags"].as_str() {
             Some(value) => value.to_string(),
@@ -248,8 +236,6 @@ async fn sync_block(conn: &mut PgConnection,api: IdenaAPI, height: usize) {
 
 
 
-use actix_web::{get, web, App, HttpServer, Responder};
-use actix_web::{HttpResponse};
 
 fn fix_string(mut string: String) -> String {
     string.replace("BlockDB ", "").replace("", "");
@@ -269,7 +255,6 @@ fn fix_string(mut string: String) -> String {
     string = string.replace("BlockDB", "");
     string 
 }
-// TransactionDB { epoch: 103, blockheight: 5707712, blockhash: "0x459ea6cbaa13f0b77026260e5042bca5f8f4980a7dbe7e8da53c875e18b67bfd", hash: "0x99b9b804e1a7f5aa9f381f2fb76a9af36e7c36226f62129565a5ea2a72e13e0d", type_: "replenishStake", timestamp: "0", from: "0x09ed45c08be88258e1dd59d3f7d0718e3e867588", to: "0x09ed45c08be88258e1dd59d3f7d0718e3e867588", amount: "10.1372563540503", tips: "0", maxfee: "0.00556586260868", fee: "0", size: 0, nonce: 131 }
 fn fix_string_tx(mut string: String) -> String {
     string.replace("TransactionDB ", "").replace("", "");
     string = string.replace("\n", "");
@@ -300,7 +285,7 @@ async fn index() -> impl Responder {
 async fn block_api(path: web::Path<(String,)>) -> impl Responder {
     let mut db = establish_connection();
     let blockapi = getBlockByHash(&mut db, path.0.clone());
-    let mut string = format!("{:?}", blockapi);
+    let string = format!("{:?}", blockapi);
     let string = fix_string(string);
     
     HttpResponse::Ok().body(format!("{}", string).replace("BlockDB ", "").replace("", ""))
@@ -309,7 +294,7 @@ async fn block_api(path: web::Path<(String,)>) -> impl Responder {
 async fn block_api_height(path: web::Path<(i32,)>) -> impl Responder {
     let mut db = establish_connection();
     let blockapi = getBlockByHeight(&mut db, path.0.clone());
-    let mut string = format!("{:?}", blockapi);
+    let string = format!("{:?}", blockapi);
     let string = fix_string(string);
 
     HttpResponse::Ok().body(format!("{}", string).replace("BlockDB ", "").replace("", ""))
@@ -318,7 +303,7 @@ async fn block_api_height(path: web::Path<(i32,)>) -> impl Responder {
 async fn last_block_api() -> impl Responder {
     let mut db = establish_connection();
     let blockapi = getLastBlock(&mut db);
-    let mut string = format!("{:?}", blockapi);
+    let string = format!("{:?}", blockapi);
     let string = fix_string(string);
 
     HttpResponse::Ok().body(format!("{}", string).replace("BlockDB ", "").replace("", ""))
@@ -328,12 +313,12 @@ async fn last_block_api() -> impl Responder {
 async fn last_100_blocks_api() -> impl Responder {
     let mut db = establish_connection();
     let mut json = String::from("[");
-    let mut lastest = getLastBlock(&mut db);
+    let lastest = getLastBlock(&mut db);
     for i in 0..100 {
         
         let blockapi = getBlockByHeight(&mut db, lastest.height - i);
 
-        let mut string = format!("{:?}", blockapi);
+        let string = format!("{:?}", blockapi);
         json.push_str(&format!("{}", string).replace("BlockDB ", "").replace("", ""));
         // replace coinbase with "coinbase" and so on
   
@@ -369,17 +354,17 @@ async fn last_100_blocks_api() -> impl Responder {
 async fn tx_api(path: web::Path<(String,)>) -> impl Responder {
     let mut db = establish_connection();
     let txapi = getTxByHash(&mut db, path.0.clone());
-    let mut string = format!("{:?}", txapi);
+    let string = format!("{:?}", txapi);
     let string = fix_string_tx(string);
 
     HttpResponse::Ok().body(format!("{}", string).replace("TxDB ", "").replace("", ""))
 }
 #[get("/account/{address}")]
 async fn account_api(path: web::Path<(String,)>) -> impl Responder {
-    let mut idenaapi = IdenaAPI::new("idena-restricted-node-key", "https://restricted.idena.io");
-    let mut balance = idenaapi.balance(&path.0.clone()).await.unwrap();
+    let idenaapi = IdenaAPI::new("idena-restricted-node-key", "https://restricted.idena.io");
+    let balance = idenaapi.balance(&path.0.clone()).await.unwrap();
     let mut db = establish_connection();
-    let mut txs = getTxsByAddress(&mut db, path.0.clone().to_string()).await;
+    let txs = getTxsByAddress(&mut db, path.0.clone().to_string()).await;
     // getTxsByAddress -> vec<String> 
     HttpResponse::Ok().body(format!("{{\"address\": \"{}\", \"balance\": {}, \"txs\": {:?}}}", path.0.clone(), balance, txs))
     
@@ -387,16 +372,10 @@ async fn account_api(path: web::Path<(String,)>) -> impl Responder {
 }
 #[get("/epoch")]
 async fn epoch_api() -> impl Responder {
-    let mut idenaapi = IdenaAPI::new("idena-restricted-node-key", "https://restricted.idena.io");
-    let mut epoch = idenaapi.epoch().await.unwrap();
+    let idenaapi = IdenaAPI::new("idena-restricted-node-key", "https://restricted.idena.io");
+    let epoch = idenaapi.epoch().await.unwrap();
     HttpResponse::Ok().body(format!("{}", epoch))
 }
-
-// All calls
-
-
-
-use actix_web::middleware::DefaultHeaders;
 
 
 #[tokio::main]
@@ -430,7 +409,7 @@ async fn main() -> Result<(), std::io::Error> {
     println!("Starting indexer with args: --index-old-blocks: {}, --port: {}", start_old, port);
   
     task::spawn(async move{
-        let mut api = IdenaAPI::new("idena-restricted-node-key", "https://restricted.idena.io");
+        let api = IdenaAPI::new("idena-restricted-node-key", "https://restricted.idena.io");
 
         println!("Idena indexer in rust");
         let _response = api.epoch().await.unwrap();
@@ -448,14 +427,14 @@ async fn main() -> Result<(), std::io::Error> {
         // sync lastest block test
         sync_block(&mut db,api.clone(), (lastest["height"].as_u64().unwrap()).try_into().unwrap()).await;
         // get lastest block test
-        let block = getBlockByHash(&mut db, (lastest["hash"].as_str().unwrap()).to_string());
+        let _block = getBlockByHash(&mut db, (lastest["hash"].as_str().unwrap()).to_string());
         let block = getBlockByHeight(&mut db, (lastest["height"].as_u64().unwrap()).try_into().unwrap());
         let mut lastest_height = 0;
         println!("Lastest block: {}", block.hash);
         let mut check_height = 0;
 
         loop {
-            let mut apiloop = IdenaAPI::new("idena-restricted-node-key", "https://restricted.idena.io");
+            let apiloop = IdenaAPI::new("idena-restricted-node-key", "https://restricted.idena.io");
 
 
             let _response = apiloop.last_block().await.unwrap();
@@ -468,7 +447,7 @@ async fn main() -> Result<(), std::io::Error> {
             } else {
                 println!("No new blocks");
                 // check for last 100 blocks
-                if (check_height == 1) {
+                if check_height == 1 {
                 
                     for i in 0..100 {
                         let doesExist1 = doesExist(&mut db, (height - i).try_into().unwrap());
@@ -490,10 +469,10 @@ async fn main() -> Result<(), std::io::Error> {
             let mut db = establish_connection();
             
             loop {
-                let mut apiloop = IdenaAPI::new("idena-restricted-node-key", "https://restricted.idena.io");
-                let mut lastest = getLastBlock(&mut db);
+                let apiloop = IdenaAPI::new("idena-restricted-node-key", "https://restricted.idena.io");
+                let lastest = getLastBlock(&mut db);
                 // this is thread to sync all blocks from lastest to 0 if block is not synced
-                let mut height = lastest.height;
+                let height = lastest.height;
                 for i in 0..height {
                     let doesExist1 = doesExist(&mut db, (height - i).try_into().unwrap());
                     if !doesExist1 {
